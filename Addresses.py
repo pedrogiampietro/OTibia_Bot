@@ -185,14 +185,14 @@ def load_miracle() -> None:
     item_link = 'https://www.tibia-wiki.net/wiki/Plik:'
     # Static Addresses
     # Character Addresses
-    my_x_address = 0xA316EC
-    my_y_address = 0xA316F0
-    my_z_address = 0xA316F4
-    my_stats_address = 0x00A31310
-    my_hp_offset = [0x4A8]
-    my_hp_max_offset = [0x4B0]
-    my_mp_offset = [0X4E0]
-    my_mp_max_offset = [0X4E8]
+    my_x_address = 0x00A31570
+    my_y_address = 0x00A31574
+    my_z_address = 0x00A31578
+    my_stats_address = 0x00A31290
+    my_hp_offset = [0x470]
+    my_hp_max_offset = [0x478]
+    my_mp_offset = [0X4A8]
+    my_mp_max_offset = [0X4B0]
     backpack_address = None
     backpack_offset = None
 
@@ -208,13 +208,48 @@ def load_miracle() -> None:
     client_name = "Miracle 7.4"
     os.makedirs("Images/" + client_name, exist_ok=True)
     game_name = fin_window_name(client_name)
+    print(f"Attempting to find window with title: {game_name}") # Debug print
+
     # Loading Addresses
     game = win32gui.FindWindow(None, game_name)
-    proc_id = win32process.GetWindowThreadProcessId(game)
-    proc_id = proc_id[1]
+    if game == 0:
+        print(f"Error: Could not find window: {game_name}. Ensure the game client is running and the title is correct.")
+        # Consider how to handle this error, e.g., return or raise an exception
+        return # Or raise an error
+
+    print(f"Found window handle (game): {game}") # Debug print
+    proc_id_tuple = win32process.GetWindowThreadProcessId(game)
+    if not proc_id_tuple or len(proc_id_tuple) < 2:
+        print(f"Error: Could not get process ID for window handle {game}.")
+        return # Or raise an error
+    proc_id = proc_id_tuple[1]
+    print(f"Process ID (proc_id): {proc_id}") # Debug print
+
     process_handle = c.windll.kernel32.OpenProcess(0x1F0FFF, False, proc_id)
-    modules = win32process.EnumProcessModules(process_handle)
-    base_address = modules[0]
+    if process_handle == 0:
+        error_code = c.windll.kernel32.GetLastError()
+        print(f"Error: OpenProcess failed for PID {proc_id}. Error code: {error_code}")
+        # Common error codes: 5 (Access Denied - try running as admin), 87 (Invalid Parameter)
+        # You can look up Windows System Error Codes for more details on the error_code
+        c.windll.kernel32.CloseHandle(process_handle) # Close even if it's 0, as per some docs, though it might not be necessary
+        return # Or raise an error
+    
+    print(f"Process handle: {process_handle}") # Debug print
+
+    try:
+        modules = win32process.EnumProcessModules(process_handle)
+        if not modules:
+            print(f"Error: EnumProcessModules returned no modules for handle {process_handle}.")
+            c.windll.kernel32.CloseHandle(process_handle)
+            return # Or raise an error
+        base_address = modules[0]
+        print(f"Base address: {base_address}") # Debug print
+    except Exception as e:
+        print(f"Error during EnumProcessModules or getting base_address: {e}")
+        c.windll.kernel32.CloseHandle(process_handle)
+        raise # Re-raise the original exception to see the traceback
+    # It's good practice to close the handle when done, though in this global context it might be more complex
+    # c.windll.kernel32.CloseHandle(process_handle) # This might be problematic if process_handle is used later globally
 
 
 def load_dura() -> None:
